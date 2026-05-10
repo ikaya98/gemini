@@ -1,0 +1,368 @@
+import os
+
+# Define the HTML content for the Audi Revolut F1 Work Tracking App
+html_content = """<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Audi Revolut F1 Team - Time Tracker</title>
+    <style>
+        :root {
+            --audi-black: #0d0d0d;
+            --audi-red: #BB0A21;
+            --audi-white: #ffffff;
+            --audi-grey: #1a1a1a;
+            --audi-text-dim: #999;
+            --header-height: 60px;
+            --nav-height: 65px;
+            --sync-banner-height: 36px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0; font-family: 'Audi Type', Arial, sans-serif;
+            background-color: var(--audi-black); color: var(--audi-white);
+            overflow: hidden; height: 100vh;
+        }
+
+        /* --- Animations --- */
+        @keyframes textWipe {
+            0% { width: 0; } 100% { width: 100%; }
+        }
+        @keyframes carDrive {
+            0% { transform: translateX(-150px); }
+            100% { transform: translateX(calc(100vw + 150px)); }
+        }
+
+        /* --- Splash Screen --- */
+        #splash {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--audi-black); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .splash-logo { width: 200px; margin-bottom: 20px; }
+        .wipe-text {
+            font-weight: bold; font-size: 1.5rem; letter-spacing: 2px;
+            overflow: hidden; white-space: nowrap; border-right: 2px solid var(--audi-red);
+            animation: textWipe 1.5s steps(30, end) forwards;
+        }
+        .car-container { position: absolute; bottom: 100px; width: 100%; }
+        .f1-car { width: 120px; animation: carDrive 3.4s linear forwards; }
+
+        /* --- Sync Banner --- */
+        #sync-banner {
+            height: var(--sync-banner-height); background: var(--audi-red);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: bold; transform: translateY(-100%);
+            transition: transform 0.3s ease; position: fixed; top: 0; width: 100%; z-index: 1001;
+        }
+        body.syncing #sync-banner { transform: translateY(0); }
+        body.syncing #app-container { transform: translateY(var(--sync-banner-height)); }
+
+        /* --- Header & Nav --- */
+        header {
+            height: var(--header-height); background: var(--audi-black);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 15px; border-bottom: 1px solid #333; transition: transform 0.3s;
+        }
+        .audi-logo { width: 100px; fill: white; }
+        .f1-logo { width: 40px; fill: white; }
+        
+        nav {
+            position: fixed; bottom: 0; width: 100%; height: var(--nav-height);
+            background: var(--audi-grey); display: flex; justify-content: space-around;
+            border-top: 1px solid #333; padding-bottom: env(safe-area-inset-bottom);
+        }
+        .nav-item {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; font-size: 0.65rem; color: var(--audi-text-dim);
+            cursor: pointer;
+        }
+        .nav-item.active { color: var(--audi-red); }
+        .nav-item i { font-size: 1.4rem; margin-bottom: 4px; }
+
+        /* --- Main Content --- */
+        main {
+            height: calc(100vh - var(--header-height) - var(--nav-height));
+            overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* --- Account Selection --- */
+        #account-selector {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--audi-black); z-index: 9000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .account-card {
+            background: var(--audi-grey); border-radius: 12px; padding: 20px;
+            margin: 10px; width: 80%; max-width: 300px; text-align: center;
+            border-left: 5px solid var(--audi-red);
+        }
+
+        /* --- Forms & UI --- */
+        .card { background: var(--audi-grey); padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: #222; padding: 10px; border-radius: 8px; text-align: center; }
+        .stat-val { font-size: 1.2rem; font-weight: bold; color: var(--audi-red); }
+        
+        input, select, textarea {
+            width: 100%; background: #222; border: 1px solid #444; color: white;
+            padding: 12px; margin: 8px 0; border-radius: 5px; font-size: 1rem;
+        }
+        .btn {
+            background: var(--audi-red); color: white; border: none; padding: 15px;
+            width: 100%; border-radius: 5px; font-weight: bold; text-transform: uppercase;
+        }
+        .toggle-container { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
+
+        /* --- Lists & Tables --- */
+        .entry-item { border-bottom: 1px solid #333; padding: 10px 0; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+
+    <div id="splash">
+        <svg class="splash-logo" viewBox="205 205 618 215">
+            <path fill="white" d="M312.5 205c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9z"/>
+        </svg>
+        <div class="wipe-text">Audi Revolut F1 Team</div>
+        <div class="car-container">
+            <svg class="f1-car" viewBox="0 0 100 30">
+                <path fill="#BB0A21" d="M10,25 L90,25 L85,15 L60,12 L40,12 L15,18 Z" />
+                <circle cx="25" cy="25" r="4" fill="white" />
+                <circle cx="75" cy="25" r="4" fill="white" />
+            </svg>
+        </div>
+    </div>
+
+    <div id="sync-banner">SYNCING WITH AUDI CLOUD...</div>
+
+    <div id="account-selector" style="display:none">
+        <h2>PILOT AUSWÄHLEN</h2>
+        <div id="account-list"></div>
+        <button class="btn" style="width: auto; margin-top:20px" onclick="app.showAddAccount()">+ NEUES KONTO</button>
+    </div>
+
+    <div id="app-container">
+        <header>
+            <svg class="audi-logo" viewBox="205 205 618 215">
+                <path d="M312.5 205c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9zm137.5-137.4c-44.4 0-80.5 36.1-80.5 80.5s36.1 80.5 80.5 80.5 80.5-36.1 80.5-80.5-36.1-80.5-80.5-80.5zm0 137.4c-31.4 0-56.9-25.5-56.9-56.9s25.5-56.9 56.9-56.9 56.9 25.5 56.9 56.9-25.5 56.9-56.9 56.9z"/>
+            </svg>
+            <span style="font-weight: bold; font-size: 0.9rem">Audi Revolut F1</span>
+            <svg class="f1-logo" viewBox="0 0 42 12"><path d="M29.5 1.5h11l-1.2 2.5H31L29.5 7h8.5l-1.2 2.5H28l-1.5 5H24l3-11h2.5zM2.5 1.5h18l-1.2 2.5H6.5l-1 3.5h10.5l-1.2 2.5H5.5L4 12H1l3-11h-1.5z"/></svg>
+        </header>
+
+        <main id="pull-area">
+            <div id="tab-erfassen" class="tab-content active">
+                <div class="stat-grid">
+                    <div class="stat-card"><div>Heute</div><div class="stat-val" id="stat-h">0.0</div></div>
+                    <div class="stat-card"><div>Woche</div><div class="stat-val" id="stat-w">0.0</div></div>
+                    <div class="stat-card"><div>Monat</div><div class="stat-val" id="stat-m">0.0</div></div>
+                    <div class="stat-card"><div>Gesamt</div><div class="stat-val" id="stat-g">0.0</div></div>
+                </div>
+                <div class="card">
+                    <input type="date" id="f-date">
+                    <input type="number" step="0.25" id="f-hours" placeholder="Stunden (z.B. 8.5)">
+                    <select id="f-country">
+                        <option value="DE">Deutschland (Hockenheim/Nürburgring)</option>
+                        <option value="AT">Österreich (Spielberg)</option>
+                        <option value="GB">Großbritannien (Silverstone)</option>
+                        <option value="IT">Italien (Monza/Imola)</option>
+                        <option value="MC">Monaco</option>
+                    </select>
+                    <input type="text" id="f-task" placeholder="Tätigkeit">
+                    <div class="toggle-container">
+                        <span>Unterkunft: Hotel</span>
+                        <input type="checkbox" id="f-hotel" style="width: auto">
+                    </div>
+                    <div class="toggle-container">
+                        <span>Verpflegung inkl.</span>
+                        <input type="checkbox" id="f-food" style="width: auto">
+                    </div>
+                    <textarea id="f-note" placeholder="Notizen..."></textarea>
+                    <button class="btn" onclick="app.saveEntry()">EINTRAG SPEICHERN</button>
+                </div>
+            </div>
+
+            <div id="tab-uebersicht" class="tab-content">
+                <h3>Letzte Einträge</h3>
+                <div id="entry-list"></div>
+            </div>
+
+            <div id="tab-setup" class="tab-content">
+                <div class="card">
+                    <h3>Synchronisierung</h3>
+                    <input type="text" id="s-gas-url" placeholder="Google Apps Script URL">
+                    <button class="btn" onclick="app.sync()">JETZT SYNCEN</button>
+                    <p id="s-sync-status" style="font-size:0.8rem; margin-top:10px"></p>
+                </div>
+                <button class="btn" style="background:#444" onclick="app.logout()">KONTO WECHSELN</button>
+            </div>
+        </main>
+
+        <nav>
+            <div class="nav-item active" onclick="app.switchTab('erfassen', this)"><i>⏱</i><span>Erfassen</span></div>
+            <div class="nav-item" onclick="app.switchTab('uebersicht', this)"><i>📋</i><span>Übersicht</span></div>
+            <div class="nav-item" onclick="app.switchTab('abrechnung', this)"><i>💰</i><span>Abrechnung</span></div>
+            <div class="nav-item" onclick="app.switchTab('zulagen', this)"><i>🌍</i><span>Zulagen</span></div>
+            <div class="nav-item" onclick="app.switchTab('urlaub', this)"><i>🏖</i><span>Urlaub</span></div>
+            <div class="nav-item" onclick="app.switchTab('setup', this)"><i>⚙️</i><span>Setup</span></div>
+        </nav>
+    </div>
+
+    <script>
+        const app = {
+            currentUser: null,
+            db: { entries: [], zulagen: {}, urlaub: [], deleted: [] },
+
+            init() {
+                // Splash Timer
+                setTimeout(() => {
+                    document.getElementById('splash').style.display = 'none';
+                    this.showAccountSelector();
+                }, 3400);
+
+                // Setup Listeners
+                this.initPullToRefresh();
+            },
+
+            lsKey(key) { return `audi_f1_${this.currentUser.id}_${key}`; },
+
+            showAccountSelector() {
+                const accounts = JSON.parse(localStorage.getItem('audi_accounts') || '[]');
+                const list = document.getElementById('account-list');
+                list.innerHTML = '';
+                accounts.forEach(acc => {
+                    const div = document.createElement('div');
+                    div.className = 'account-card';
+                    div.innerHTML = `<h3>${acc.emoji} ${acc.name}</h3>`;
+                    div.onclick = () => this.login(acc);
+                    list.appendChild(div);
+                });
+                document.getElementById('account-selector').style.display = 'flex';
+                document.getElementById('app-container').style.display = 'none';
+            },
+
+            login(acc) {
+                this.currentUser = acc;
+                this.loadLocalData();
+                document.getElementById('account-selector').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+                this.renderEntries();
+            },
+
+            loadLocalData() {
+                this.db.entries = JSON.parse(localStorage.getItem(this.lsKey('entries')) || '[]');
+                this.db.deleted = JSON.parse(localStorage.getItem(this.lsKey('deleted')) || '[]');
+            },
+
+            saveEntry() {
+                const entry = {
+                    id: 'E_' + Date.now(),
+                    date: document.getElementById('f-date').value,
+                    hours: parseFloat(document.getElementById('f-hours').value),
+                    country: document.getElementById('f-country').value,
+                    task: document.getElementById('f-task').value,
+                    hotel: document.getElementById('f-hotel').checked,
+                    food: document.getElementById('f-food').checked,
+                    ts: Date.now()
+                };
+                this.db.entries.push(entry);
+                this.persist();
+                this.renderEntries();
+                alert("Eintrag gespeichert!");
+            },
+
+            persist() {
+                localStorage.setItem(this.lsKey('entries'), JSON.stringify(this.db.entries));
+                localStorage.setItem(this.lsKey('deleted'), JSON.stringify(this.db.deleted));
+            },
+
+            renderEntries() {
+                const list = document.getElementById('entry-list');
+                list.innerHTML = this.db.entries.sort((a,b) => b.date.localeCompare(a.date)).map(e => `
+                    <div class="entry-item">
+                        <div><b>${e.date}</b> - ${e.country}<br><small>${e.task}</small></div>
+                        <div style="color:var(--audi-red)">${e.hours}h</div>
+                    </div>
+                `).join('');
+                
+                // Update Stats
+                const total = this.db.entries.reduce((sum, e) => sum + e.hours, 0);
+                document.getElementById('stat-g').innerText = total.toFixed(1);
+            },
+
+            switchTab(tabId, el) {
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.getElementById('tab-' + tabId).classList.add('active');
+                el.classList.add('active');
+            },
+
+            async sync() {
+                const url = document.getElementById('s-gas-url').value;
+                if(!url) return alert("Bitte Apps Script URL eintragen");
+
+                document.body.classList.add('syncing');
+                
+                try {
+                    // Push logic (Simplified for demo)
+                    const payload = {
+                        action: 'sync',
+                        entries: this.db.entries,
+                        deleted: this.db.deleted
+                    };
+
+                    // JSONP Fallback strategy
+                    const response = await fetch(url + "?callback=syncCallback&data=" + encodeURIComponent(JSON.stringify(payload)), { mode: 'no-cors' });
+                    
+                    document.getElementById('s-sync-status').innerText = "Sync erfolgreich: " + new Date().toLocaleTimeString();
+                } catch(e) {
+                    console.error(e);
+                } finally {
+                    setTimeout(() => document.body.classList.remove('syncing'), 1000);
+                }
+            },
+
+            initPullToRefresh() {
+                let startY = 0;
+                const area = document.getElementById('pull-area');
+                area.addEventListener('touchstart', e => startY = e.touches[0].pageY);
+                area.addEventListener('touchmove', e => {
+                    if(area.scrollTop === 0 && e.touches[0].pageY > startY + 80) {
+                        this.sync();
+                    }
+                });
+            },
+
+            showAddAccount() {
+                const name = prompt("Name des Piloten:");
+                if(name) {
+                    const accs = JSON.parse(localStorage.getItem('audi_accounts') || '[]');
+                    accs.push({ id: Date.now(), name, emoji: '🏎️', color: '#BB0A21' });
+                    localStorage.setItem('audi_accounts', JSON.stringify(accs));
+                    this.showAccountSelector();
+                }
+            },
+
+            logout() {
+                this.currentUser = null;
+                this.showAccountSelector();
+            }
+        };
+
+        app.init();
+    </script>
+</body>
+</html>"""
+
+# Writing the HTML content to a file
+with open("audi_revolut_f1_tracker.html", "w") as f:
+    f.write(html_content)
+
+print("Die Single-Page-App wurde generiert.")
